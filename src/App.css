@@ -1,184 +1,90 @@
-.counter {
-  font-size: 16px;
-  padding: 5px 10px;
-  border-radius: 5px;
-  color: var(--accent);
-  background: var(--accent-bg);
-  border: 2px solid transparent;
-  transition: border-color 0.3s;
-  margin-bottom: 24px;
-
-  &:hover {
-    border-color: var(--accent-border);
-  }
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
+/* Shared controls and layout used across the bookshelf. */
+.wrap {
+  @apply mx-auto w-[min(1120px,calc(100%-64px))] phone:w-[calc(100%-36px)];
 }
 
-.hero {
-  position: relative;
+.social-links a {
+  @apply flex min-h-11 items-center gap-[7px] text-[.875rem] font-[550] hover:text-scarf phone:w-[42px] phone:justify-center;
+}
+.social-links svg { @apply size-[18px] fill-none stroke-current stroke-[1.7]; }
+.social-links span { @apply phone:hidden; }
 
-  .base,
-  .framework,
-  .vite {
-    inset-inline: 0;
-    margin: 0 auto;
-  }
+.primary {
+  @apply flex min-h-11 items-center justify-center gap-[9px] rounded-[7px] border-0 bg-ink px-[18px] py-[11px] text-control font-[650] text-white hover:bg-scarf;
+}
+.control {
+  @apply flex min-h-[45px] items-center rounded-lg border border-line bg-surface text-control;
+}
+.text-button { @apply min-h-11 border-0 px-0 py-2 font-[650] text-scarf underline; }
+.status { @apply border-y border-line px-[15px] py-9 text-center text-muted; }
+.genre-chip { @apply rounded-md border border-[#d8d1c1] px-[9px] py-[3px] text-[.785rem] text-[#57564b] capitalize; }
 
-  .base {
-    width: 170px;
-    position: relative;
-    z-index: 0;
-  }
-
-  .framework,
-  .vite {
-    position: absolute;
-  }
-
-  .framework {
-    z-index: 1;
-    top: 34px;
-    height: 28px;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
-      scale(1.4);
-  }
-
-  .vite {
-    z-index: 0;
-    top: 107px;
-    height: 26px;
-    width: auto;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
-      scale(0.8);
-  }
+.featured-dots button {
+  @apply grid h-[30px] w-6 place-items-center rounded-xl border-0 p-0;
+  &::before { content: ''; @apply size-[7px] rounded-full bg-[#a09e93]; }
+  &[aria-current]::before { @apply size-[9px] bg-scarf; }
 }
 
-#center {
-  display: flex;
-  flex-direction: column;
-  gap: 25px;
-  place-content: center;
-  place-items: center;
-  flex-grow: 1;
-
-  @media (max-width: 1024px) {
-    padding: 32px 20px 24px;
-    gap: 18px;
-  }
+/* The book artwork uses layered gradients and decorative orbits. */
+.banner { mask-image: linear-gradient(to right, transparent, black 6%, black 94%, transparent); }
+.feature-art {
+  background: radial-gradient(ellipse at 65% 25%, #f3e0ad99, transparent 63%),
+    linear-gradient(120deg, #d4ab67, #ead09a 53%, #d4b375) #dfbc7e;
 }
-
-#next-steps {
-  display: flex;
-  border-top: 1px solid var(--border);
-  text-align: left;
-
-  & > div {
-    flex: 1 1 0;
-    padding: 32px;
-    @media (max-width: 1024px) {
-      padding: 24px 20px;
-    }
-  }
-
-  .icon {
-    margin-bottom: 16px;
-    width: 22px;
-    height: 22px;
-  }
-
-  @media (max-width: 1024px) {
-    flex-direction: column;
-    text-align: center;
-  }
+.feature-art::after {
+  content: '';
+  @apply absolute inset-0 -z-1 opacity-[.32];
+  background: radial-gradient(#8b673059 .65px, transparent .9px) 0 0 / 4px 4px;
 }
-
-#docs {
-  border-right: 1px solid var(--border);
-
-  @media (max-width: 1024px) {
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
+.orbits i {
+  @apply absolute top-[1%] -left-1/4 h-[83%] w-[153%] -rotate-[32deg] rounded-[50%] border border-[#fff5cf83];
 }
-
-#next-steps ul {
-  list-style: none;
-  padding: 0;
-  display: flex;
-  gap: 8px;
-  margin: 32px 0 0;
-
-  .logo {
-    height: 18px;
-  }
-
-  a {
-    color: var(--text-h);
-    font-size: 16px;
-    border-radius: 6px;
-    background: var(--social-bg);
-    display: flex;
-    padding: 6px 12px;
-    align-items: center;
-    gap: 8px;
-    text-decoration: none;
-    transition: box-shadow 0.3s;
-
-    &:hover {
-      box-shadow: var(--shadow);
-    }
-    .button-icon {
-      height: 18px;
-      width: 18px;
-    }
-  }
-
-  @media (max-width: 1024px) {
-    margin-top: 20px;
-    flex-wrap: wrap;
-    justify-content: center;
-
-    li {
-      flex: 1 1 calc(50% - 8px);
-    }
-
-    a {
-      width: 100%;
-      justify-content: center;
-      box-sizing: border-box;
-    }
-  }
+.orbits i:nth-child(2) { @apply top-[6%]; }
+.orbits i:nth-child(n+3) { @apply top-[68%] -left-[15%] -rotate-[22deg]; }
+.orbits i:nth-child(4) { @apply top-[73%]; }
+.feature-cover::after {
+  content: '';
+  @apply pointer-events-none absolute inset-0 rounded-xs;
+  background: linear-gradient(90deg, #0005, transparent 2%, #fff4 3%, #0003 4%, transparent 6%);
 }
+img.cover { @apply min-h-0; }
+.book-card:nth-child(3n + 2) .card-art { @apply border-[#e2d9cc] bg-[#ece4d9]; }
+.book-card:nth-child(3n) .card-art { @apply bg-[#e2e8ea]; }
 
-#spacer {
-  height: 88px;
-  border-top: 1px solid var(--border);
-  @media (max-width: 1024px) {
-    height: 48px;
-  }
+.genre-track:has(.genre-copy) {
+  animation: scroll-genres var(--genre-loop-duration) linear infinite;
+  @apply motion-reduce:animate-none;
 }
+.featured[aria-hidden="true"] .genre-track,
+.featured:focus-within .genre-track { animation-play-state: paused; }
+@keyframes scroll-genres { to { transform: translateX(calc(-50% - 3px)); } }
 
-.ticks {
-  position: relative;
-  width: 100%;
-
-  &::before,
-  &::after {
-    content: '';
-    position: absolute;
-    top: -4.5px;
-    border: 5px solid transparent;
-  }
-
-  &::before {
-    left: 0;
-    border-left-color: var(--border);
-  }
-  &::after {
-    right: 0;
-    border-right-color: var(--border);
-  }
+dialog {
+  @apply max-h-[88dvh] w-[min(610px,92vw)] overscroll-contain rounded-[17px] border border-line bg-paper p-0 text-ink;
+  @apply phone:inset-0 phone:m-0 phone:h-dvh phone:max-h-none phone:w-full phone:max-w-none phone:rounded-none phone:border-0;
+}
+dialog::backdrop { @apply bg-[#20241ee0] opacity-[.72]; }
+.filter-dialog {
+  @apply w-[min(470px,92vw)] phone:inset-[auto_0_0] phone:h-auto phone:max-h-[85dvh] phone:w-full phone:rounded-t-[17px];
+}
+body:has(.filter-dialog[open]) { @apply overflow-hidden; }
+.filter-option {
+  @apply min-h-11 wrap-anywhere rounded-[7px] border border-line bg-surface px-3 py-[7px] text-control capitalize;
+  @apply aria-pressed:border-scarf aria-pressed:bg-scarf aria-pressed:text-white;
+}
+.detail-bar {
+  @apply sticky top-0 z-1 flex shrink-0 items-center justify-between border-b border-line bg-paper py-1.5 pr-[17px] pl-[25px];
+  @apply phone:py-[5px] phone:pr-2.5 phone:pl-[18px];
+}
+.detail-bar span { @apply flex items-center gap-[9px] text-control font-[650]; }
+.detail-bar button { @apply grid size-11 place-items-center rounded-full border-0 hover:bg-[#eae9e2]; }
+.detail-content {
+  scrollbar-color: #a09e93 transparent;
+  @apply focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-scarf focus-visible:-outline-offset-2;
+}
+.detail-cover .cover { @apply max-h-[175px] w-full; }
+.detail-content section { @apply mt-[23px] border-t border-line pt-[18px]; }
+.detail-content h3 { @apply mb-2.5 text-[1.55rem]; }
+.format-links a {
+  @apply flex min-h-11 items-center gap-[7px] rounded-[7px] bg-scarf px-3.5 py-2.5 text-control font-[550] text-white hover:bg-ink;
 }
