@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { BookOpen, Headphones, LibraryBig, Pencil, Plus, Search, SlidersHorizontal, Sparkle, Star, Tablet, X } from 'lucide-react'
 import avatar from './assets/sticky-avatar.webp'
 import banner from './assets/sticky-characters.webp'
-import { filterBooks, isBookFeatured, webUrl, youtubeId } from './books'
+import { bookPosition, filterBooks, isBookFeatured, seriesKey, seriesOptions, webUrl, youtubeId } from './books'
 
 export function Header({ children }) {
   return <header className="border-b border-line">
@@ -141,7 +141,20 @@ const formats = [
   ['box_set_affiliate_url', 'Box set', LibraryBig],
 ]
 
-const emptyFilters = { genres: [], formats: [] }
+const emptyFilters = { genres: [], formats: [], series: '' }
+
+function readShelfLocation() {
+  const { searchParams } = new URL(window.location.href)
+  return { bookId: searchParams.get('book'), series: seriesKey(searchParams.get('series')) }
+}
+
+function seriesLink(series) {
+  const url = new URL(window.location.href)
+  url.searchParams.delete('book')
+  url.searchParams.set('series', series)
+  url.hash = 'collection-title'
+  return url
+}
 
 function FilterOptions({ label, options, selected, onChange }) {
   return <fieldset className="m-0 min-w-0 border-0 p-0">
@@ -155,10 +168,10 @@ function FilterOptions({ label, options, selected, onChange }) {
   </fieldset>
 }
 
-function BookFilters({ filters, onApply, genres, availableFormats }) {
+function BookFilters({ filters, onApply, genres, availableFormats, seriesList }) {
   const dialog = useRef(null)
   const [draft, setDraft] = useState(emptyFilters)
-  const count = filters.genres.length + filters.formats.length
+  const count = filters.genres.length + filters.formats.length + Number(Boolean(filters.series))
 
   function openFilters() {
     setDraft(filters)
@@ -185,6 +198,9 @@ function BookFilters({ filters, onApply, genres, availableFormats }) {
           <button type="button" aria-label="Close filters" onClick={() => dialog.current.close()}><X size={21} /></button>
         </header>
         <div className="grid gap-5 px-[25px] py-5 phone:px-[18px]">
+          {seriesList.length > 0 && <FilterOptions label="Series" options={seriesList}
+            selected={draft.series ? [draft.series] : []}
+            onChange={(value, checked) => setDraft(current => ({ ...current, series: checked ? value : '' }))} />}
           {genres.length > 0 && <FilterOptions label="Genres" options={genres.map(genre => [genre, genre])}
             selected={draft.genres} onChange={(value, checked) => change('genres', value, checked)} />}
           {availableFormats.length > 0 && <FilterOptions label="Available formats" options={availableFormats}
@@ -199,13 +215,15 @@ function BookFilters({ filters, onApply, genres, availableFormats }) {
   </>
 }
 
-function BookDetails({ book, close, edit }) {
+function BookDetails({ book, close, edit, openSeries, total }) {
   const ref = useRef(null)
   const [expanded, setExpanded] = useState(false)
   const video = youtubeId(book.trailer_url)
   const links = formats.filter(([key]) => webUrl(book[key]))
   const description = book.description.trim()
   const shortened = description.length > 440
+  const series = seriesKey(book.series_name)
+  const position = bookPosition(book, total)
   useEffect(() => {
     const el = ref.current
     el.showModal()
@@ -223,7 +241,14 @@ function BookDetails({ book, close, edit }) {
         <div className="grid grid-cols-[112px_1fr] items-center gap-[22px] phone:grid-cols-[82px_minmax(0,1fr)] phone:gap-[13px]">
           <div className="detail-cover"><Cover book={book} /></div>
           <div>
-            {book.series_name && <p className="mb-[7px] text-[.86rem] text-scarf">{book.series_name}{book.series_number != null && ` · Book ${book.series_number}`}</p>}
+            {series && <p className="mb-[7px] wrap-anywhere text-[.86rem] text-scarf">
+              <a className="rounded-sm underline underline-offset-2 hover:text-ink" href={seriesLink(series).href}
+                onClick={event => {
+                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+                  event.preventDefault()
+                  openSeries(series)
+                }}>{book.series_name.trim()}</a>{position && ` · ${position}`}
+            </p>}
             <h2 className="wrap-anywhere text-[clamp(1.9rem,4vw,2.8rem)] tracking-[-.04em]" id="detail-title">{book.title}</h2><p className="mt-1.5 text-[#57584f]">by {book.author}</p>
             <Genres genres={book.genres} />
           </div>
@@ -259,13 +284,13 @@ export function ShelfHeading({ subtitle }) {
   </section>
 }
 
-export function ShelfCollection({ books, status, retry, edit, add }) {
+export function ShelfCollection({ books, seriesTotals, status, retry, edit, add }) {
   const [query, setQuery] = useState('')
   const [filters, setFilters] = useState(emptyFilters)
-  const currentBook = () => new URL(window.location.href).searchParams.get('book')
-  const [bookId, setBookId] = useState(currentBook)
+  const [{ bookId, series }, setLocation] = useState(readShelfLocation)
+  const collectionHeading = useRef(null)
   useEffect(() => {
-    const sync = () => setBookId(currentBook())
+    const sync = () => setLocation(readShelfLocation())
     window.addEventListener('popstate', sync)
     return () => window.removeEventListener('popstate', sync)
   }, [])
@@ -273,15 +298,36 @@ export function ShelfCollection({ books, status, retry, edit, add }) {
     const url = new URL(window.location.href)
     url.searchParams.set('book', book.id)
     window.history.pushState({ shelfDialog: true }, '', url)
-    setBookId(book.id)
+    setLocation(readShelfLocation())
   }
   function close() {
     if (window.history.state?.shelfDialog) return window.history.back()
     const url = new URL(window.location.href)
     url.searchParams.delete('book')
     window.history.replaceState(window.history.state, '', url)
-    setBookId(null)
+    setLocation(readShelfLocation())
   }
+  function openSeries(key) {
+    setQuery('')
+    setFilters(emptyFilters)
+    window.history.pushState(null, '', seriesLink(key))
+    setLocation(readShelfLocation())
+  }
+  function applyFilters(next) {
+    setFilters(next)
+    const url = new URL(window.location.href)
+    if (next.series) url.searchParams.set('series', next.series)
+    else url.searchParams.delete('series')
+    if (!next.series && url.hash === '#collection-title') url.hash = ''
+    window.history.replaceState(window.history.state, '', url)
+    setLocation(readShelfLocation())
+  }
+  useEffect(() => {
+    if (status !== 'ready' || bookId || !series || window.location.hash !== '#collection-title') return
+    const heading = collectionHeading.current
+    heading.focus({ preventScroll: true })
+    heading.scrollIntoView({ block: 'start' })
+  }, [bookId, series, status])
   const [now, setNow] = useState(Date.now)
   useEffect(() => {
     let nextEnd = Infinity
@@ -294,24 +340,34 @@ export function ShelfCollection({ books, status, retry, edit, add }) {
     return () => window.clearTimeout(timeout)
   }, [books, now])
   const selected = books.find(book => book.id === bookId)
-  const featured = books.filter(book => isBookFeatured(book, now))
+  const featured = books.filter(book => book.bookshelf_visibility !== false && isBookFeatured(book, now))
   const genres = [...new Set(books.flatMap(book => book.genres ?? []).map(item => item.trim().toLowerCase()).filter(Boolean))].sort()
   const availableFormats = formats.filter(([key]) => books.some(book => webUrl(book[key])))
-  const results = filterBooks(books, query, filters)
-  const filtered = Boolean(query.trim() || filters.genres.length || filters.formats.length)
-  function clear() { setQuery(''); setFilters(emptyFilters) }
+  const seriesList = seriesOptions(books)
+  const activeSeriesName = seriesList.find(([key]) => key === series)?.[1] ?? series
+  const currentFilters = { ...filters, series }
+  const results = filterBooks(books, query, currentFilters)
+  const filtered = Boolean(query.trim() || filters.genres.length || filters.formats.length || series)
+  const totalFor = book => seriesTotals?.get(seriesKey(book.series_name))
+  function clear() { setQuery(''); applyFilters(emptyFilters) }
 
   return <>
-    {featured.length > 0 && <FeaturedShelf key={featured.map(book => book.id).join(',')} books={featured} open={open} detailsOpen={Boolean(selected)} />}
+    {featured.length > 0 && <FeaturedShelf key={`featured-${featured.map(book => book.id).join(',')}`} books={featured} open={open} detailsOpen={Boolean(selected)} />}
     <section className="pt-[38px] pb-14 phone:pt-[26px] phone:pb-[38px]" aria-labelledby="collection-title">
-      <div className="mb-4 flex items-center gap-3 phone:mb-[13px]"><h2 className="text-[clamp(2rem,3vw,2.65rem)] tracking-[-.045em]" id="collection-title">All books</h2>
+      <div className="mb-4 flex items-center gap-3 phone:mb-[13px]"><h2 className="text-[clamp(2rem,3vw,2.65rem)] tracking-[-.045em]" id="collection-title" ref={collectionHeading} tabIndex={-1}>All books</h2>
         {status === 'ready' && <span className="rounded-full bg-[#eae9e2] px-[9px] py-[3px] text-note text-[#55584d]" role="status">{results.length} {results.length === 1 ? 'book' : 'books'}</span>}
         {add && <button className="primary ml-auto" onClick={add}><Plus size={16} />Add book</button>}
       </div>
-      {status === 'ready' && books.length > 0 && <div className="mb-[23px] flex gap-2.5 phone:mb-4 phone:gap-2">
-        <label className="control min-w-0 flex-1 gap-2.5 px-3.5 text-muted focus-within:outline-2 focus-within:outline-solid focus-within:outline-scarf focus-within:outline-offset-2"><Search size={19} /><input className="h-[43px] w-full min-w-0 border-0 bg-transparent text-[1rem] text-ink outline-none" type="search" value={query} aria-label="Search books" placeholder="Search books…" onChange={e => setQuery(e.target.value)} /></label>
-        {(genres.length > 0 || availableFormats.length > 0) &&
-          <BookFilters filters={filters} onApply={setFilters} genres={genres} availableFormats={availableFormats} />}
+      {status === 'ready' && books.length > 0 && <div className="mb-[23px] flex flex-wrap gap-2.5 phone:mb-4 phone:gap-2">
+        <label className="control min-w-0 flex-1 gap-2.5 px-3.5 text-muted focus-within:outline-2 focus-within:outline-solid focus-within:outline-scarf focus-within:outline-offset-2"><Search size={19} /><input className="h-[43px] w-full min-w-0 border-0 bg-transparent text-[1rem] text-ink outline-none" type="search" value={query} aria-label="Search books and series" placeholder="Search books or series…" onChange={e => setQuery(e.target.value)} /></label>
+        {(genres.length > 0 || availableFormats.length > 0 || seriesList.length > 0) &&
+          <BookFilters filters={currentFilters} onApply={applyFilters} genres={genres} availableFormats={availableFormats} seriesList={seriesList} />}
+        {series && <div className="w-full">
+          <button className="filter-option inline-flex items-center gap-2" type="button" aria-label={`Clear series filter for ${activeSeriesName}`}
+            onClick={() => applyFilters({ ...currentFilters, series: '' })}>
+            {activeSeriesName}<X size={15} aria-hidden="true" />
+          </button>
+        </div>}
       </div>}
       {status === 'loading' && <p className="status" role="status">Loading books…</p>}
       {status === 'error' && <div className="status" role="alert"><p>The bookshelf couldn’t load.</p><button className="text-button" onClick={retry}>Try again</button></div>}
@@ -319,10 +375,12 @@ export function ShelfCollection({ books, status, retry, edit, add }) {
       <div className="grid grid-cols-4 gap-x-[22px] gap-y-7 compact:grid-cols-3 phone:grid-cols-2 phone:gap-x-[13px] phone:gap-y-5">{results.map(book => <div className="book-card min-w-0" key={book.id}><button className="group w-full flex flex-col items-stretch rounded-[9px] border-0 p-0 text-left" onClick={() => open(book)}>
         <span className="card-art grid aspect-[1.15] place-items-center rounded-[10px] border border-[#d9ded6] bg-[#e6e9e4] phone:aspect-[.87]"><span className="grid h-[81%] max-w-[80%] min-h-0 drop-shadow-[3px_5px_4px_#3334] transition-transform duration-[180ms] ease-[ease] group-hover:-translate-y-[3px] motion-reduce:transition-none"><Cover book={book} lazy /></span></span>
         <span className="card-title mt-[11px] font-serif text-[1.3rem] leading-[1.2] tracking-[-.025em] phone:text-[1.15rem]">{book.title}</span><span className="mt-1 text-control text-muted">{book.author}</span>
+        {seriesKey(book.series_name) && <span className="mt-1 wrap-anywhere text-note text-scarf">{[book.series_name.trim(), bookPosition(book, totalFor(book))].filter(Boolean).join(' · ')}</span>}
+        {edit && book.bookshelf_visibility === false && <span className="mt-2 self-start rounded-full bg-[#eae9e2] px-2 py-0.5 text-note text-muted">Hidden</span>}
       </button>
         {edit && <button className="admin-secondary mt-2" aria-label={`Edit ${book.title} by ${book.author}`} onClick={() => edit(book)}><Pencil size={14} />Edit</button>}
       </div>)}</div>
     </section>
-    {selected && <BookDetails key={selected.id} book={selected} close={close} edit={edit} />}
+    {selected && <BookDetails key={selected.id} book={selected} close={close} edit={edit} openSeries={openSeries} total={totalFor(selected)} />}
   </>
 }

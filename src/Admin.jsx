@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowUpRight, ChartNoAxesColumn, ChevronDown, LogOut, Trash2 } from 'lucide-react'
 import { Header, ShelfCollection, ShelfHeading } from './Shelf'
-import { adminBookColumns, booksTable, createAdminClient, isBookFeatured, webUrl, youtubeId } from './books'
+import { adminBookColumns, booksTable, createAdminClient, fetchSeriesTotals, isBookFeatured, seriesOptions, seriesTable, webUrl, youtubeId } from './books'
 
 const client = createAdminClient()
 const day = 24 * 60 * 60 * 1000
@@ -70,6 +70,7 @@ function readBook(form, book) {
     series_name: get('series_name') || null,
     series_number: get('series_number') ? Number(get('series_number')) : null,
     trailer_url: get('trailer_url') || null,
+    bookshelf_visibility: get('bookshelf_visibility') === 'visible',
   }
   if (!record.title || !record.author || !record.description) {
     throw new Error('Enter a title, author, and description.')
@@ -187,6 +188,17 @@ function BookForm({ book, save, endPlacement, remove, back }) {
       <fieldset className="m-0 min-w-0 border-0 border-t border-line p-0 pt-4">
         <legend className="pr-2 font-serif text-2xl">On the bookshelf</legend>
         <div className="grid max-w-md gap-2">
+          <label className="mb-2 grid gap-1.5 text-control font-semibold">
+            Bookshelf visibility
+            <span className="relative">
+              <select className="admin-input placement-select" name="bookshelf_visibility"
+                defaultValue={book?.bookshelf_visibility === false ? 'hidden' : 'visible'}>
+                <option value="visible">Visible to visitors</option>
+                <option value="hidden">Hidden from visitors</option>
+              </select>
+              <ChevronDown aria-hidden="true" size={18} className="placement-chevron pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2 text-scarf" />
+            </span>
+          </label>
           <label className="grid gap-1.5 text-control font-semibold">
             Featured placement
             <span className="relative">
@@ -194,17 +206,17 @@ function BookForm({ book, save, endPlacement, remove, back }) {
                 onChange={event => setPlacement(event.target.value)}>
                 {book && <option value="keep">Keep current setting</option>}
                 <option value="none">Not featured</option>
+                <option value="manual">Forever</option>
                 <option value="custom">Custom duration</option>
                 {Array.from({ length: 7 }, (_, i) => i + 1).map(days =>
                   <option key={days} value={days}>{days} {days === 1 ? 'day' : 'days'} from saving</option>)}
-                <option value="manual">No end date</option>
               </select>
               <ChevronDown aria-hidden="true" size={18} className="placement-chevron pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2 text-scarf" />
             </span>
           </label>
           {placement === 'custom' && <Field label="Days from saving" name="placement_days" type="number" min="1" step="1" required />}
           {featured && <div className="flex flex-wrap items-center gap-x-3 text-note text-muted">
-            <span>{book.featured_until ? `Ends ${new Date(book.featured_until).toLocaleString()}` : 'Featured with no end date'}</span>
+            <span>{book.featured_until ? `Ends ${new Date(book.featured_until).toLocaleString()}` : 'Featured forever'}</span>
             <button type="button" className="text-button disabled:opacity-60" onClick={endNow} disabled={busy}>End now</button>
           </div>}
           {book?.is_featured && !featured && <p className="text-note text-muted">Featured placement ended.</p>}
@@ -228,8 +240,55 @@ function BookForm({ book, save, endPlacement, remove, back }) {
   </>
 }
 
+function SeriesTotalsForm({ options, totals, onSaved }) {
+  const [chosen, setChosen] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+  const selected = options.some(([key]) => key === chosen) ? chosen : options[0][0]
+
+  async function submit(event) {
+    event.preventDefault()
+    const raw = new FormData(event.currentTarget).get('total_books').trim()
+    const total = raw ? Number(raw) : null
+    setMessage('')
+    setError('')
+    setBusy(true)
+    try {
+      const { error } = await client.from(seriesTable).upsert({ series_key: selected, total_books: total })
+      if (error) throw error
+      onSaved(selected, total)
+      setMessage(total === null ? 'Series total cleared.' : 'Series total saved.')
+    } catch (error) {
+      setError(error.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return <details className="mb-2 rounded-lg border border-line px-4 py-3">
+    <summary className="cursor-pointer text-control font-semibold">Series totals</summary>
+    <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={submit}>
+      <label className="grid gap-1.5 text-control font-semibold">
+        Series
+        <select className="admin-input" value={selected} disabled={busy} onChange={event => {
+          setChosen(event.target.value)
+          setMessage('')
+          setError('')
+        }}>{options.map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select>
+      </label>
+      <Field key={`${selected}-${totals.get(selected)}`} label="Total books" name="total_books" value={totals.get(selected)}
+        type="number" min="1" max="2147483647" step="1" disabled={busy} placeholder="Optional" />
+      <button className="admin-secondary min-h-11" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save total'}</button>
+      {message && <p className="w-full text-note text-muted" role="status">{message}</p>}
+      {error && <p className="admin-error w-full" role="alert">{error}</p>}
+    </form>
+  </details>
+}
+
 function Catalog() {
   const [books, setBooks] = useState(null)
+  const [seriesTotals, setSeriesTotals] = useState(() => new Map())
   const [bookId, setBookId] = useState(null)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
@@ -253,6 +312,9 @@ function Catalog() {
     load().catch(error => {
       if (!controller.signal.aborted) setError(error.message)
     })
+    fetchSeriesTotals(controller.signal, client).then(totals => {
+      if (!controller.signal.aborted) setSeriesTotals(totals)
+    }).catch(() => { /* Books remain editable while series totals are unavailable. */ })
     return () => controller.abort()
   }, [attempt])
 
@@ -270,7 +332,8 @@ function Catalog() {
   }
 
   async function save(record) {
-    const saved = await persist(record, book ? 'Book updated.' : 'Book added to the bookshelf.')
+    const message = book ? 'Book updated.' : record.bookshelf_visibility ? 'Book added to the bookshelf.' : 'Hidden book saved.'
+    const saved = await persist(record, message)
     setBookId(saved.id)
     setRevision(value => value + 1)
   }
@@ -294,11 +357,14 @@ function Catalog() {
     <button className="text-button" onClick={() => { setError(''); setAttempt(attempt + 1) }}>Try again</button>
   </div>
   if (!books) return <p role="status">Loading books…</p>
+  const seriesList = seriesOptions(books)
 
   return <>
     <p role="status" className="mb-4 rounded-lg bg-[#e6eee7] px-4 py-3 text-control font-semibold text-[#32503b] empty:hidden">{notice}</p>
     <div hidden={bookId !== null}>
-      <ShelfCollection books={books} status="ready" edit={book => openEditor(book.id)} add={() => openEditor('')} />
+      {seriesList.length > 0 && <SeriesTotalsForm options={seriesList} totals={seriesTotals}
+        onSaved={(key, total) => setSeriesTotals(current => new Map(current).set(key, total))} />}
+      <ShelfCollection books={books} seriesTotals={seriesTotals} status="ready" edit={book => openEditor(book.id)} add={() => openEditor('')} />
     </div>
     {bookId !== null && <div className="mx-auto max-w-4xl pb-12">
       <BookForm key={`${bookId}-${revision}`} book={book} save={save} remove={remove} back={() => openEditor(null)}

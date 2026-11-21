@@ -14,7 +14,9 @@ const columns = [
 ]
 
 export const booksTable = 'stickylore67_books'
-export const adminBookColumns = [...columns, 'featured_until'].join(',')
+export const seriesTable = 'stickylore67_series'
+const publicBookColumns = [...columns, 'featured_until'].join(',')
+export const adminBookColumns = `${publicBookColumns},bookshelf_visibility`
 
 export function createAdminClient() {
   return url && key ? createClient(url, key, {
@@ -30,7 +32,7 @@ export async function fetchBooks(signal) {
   if (!db) throw new Error('Missing Supabase configuration')
   const books = []
   const pageSize = 200
-  let selection = adminBookColumns
+  let selection = publicBookColumns
   while (!signal.aborted) {
     const { data, error } = await db.from(booksTable).select(selection)
       .order('created_at', { ascending: false }).order('id')
@@ -44,6 +46,13 @@ export async function fetchBooks(signal) {
     if (data.length < pageSize) break
   }
   return books
+}
+
+export async function fetchSeriesTotals(signal, client = db) {
+  if (!client) return new Map()
+  const { data, error } = await client.from(seriesTable).select('series_key,total_books').abortSignal(signal)
+  if (error) throw error
+  return new Map(data.map(({ series_key, total_books }) => [series_key, total_books]))
 }
 
 export function webUrl(value) {
@@ -72,12 +81,31 @@ function normalize(value) {
   return String(value ?? '').normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().trim()
 }
 
+export function seriesKey(name) {
+  return normalize(name).replace(/\s+/g, ' ')
+}
+
+export function seriesOptions(books) {
+  const names = new Map()
+  for (const { series_name } of books) {
+    const key = seriesKey(series_name)
+    if (key && !names.has(key)) names.set(key, series_name.trim())
+  }
+  return [...names].sort((a, b) => a[1].localeCompare(b[1]))
+}
+
+export function bookPosition(book, total) {
+  if (book.series_number == null) return ''
+  return `Book ${book.series_number}${total > 0 && total >= book.series_number ? ` of ${total}` : ''}`
+}
+
 export function filterBooks(books, query, filters) {
   const phrase = normalize(query)
   const words = phrase.split(/\s+/).filter(Boolean)
   const genres = new Set(filters.genres.map(normalize))
   const matches = []
   for (const book of books) {
+    if (filters.series && seriesKey(book.series_name) !== filters.series) continue
     if (genres.size && !book.genres?.some(item => genres.has(normalize(item)))) continue
     if (filters.formats.length && !filters.formats.some(key => webUrl(book[key]))) continue
     const fields = [book.title, book.author, book.series_name, book.genres?.join(' '), book.description].map(normalize)
@@ -87,6 +115,13 @@ export function filterBooks(books, query, filters) {
     const score = scores.reduce((sum, weight) => sum + weight, 0)
     matches.push({ book, score, exactTitle: phrase !== '' && fields[0] === phrase })
   }
-  return matches.sort((a, b) => Number(b.exactTitle) - Number(a.exactTitle) || b.score - a.score)
+  return matches.sort((a, b) => {
+    if (filters.series) {
+      const first = a.book.series_number ?? Infinity
+      const second = b.book.series_number ?? Infinity
+      if (first !== second) return first - second
+    }
+    return Number(b.exactTitle) - Number(a.exactTitle) || b.score - a.score
+  })
     .map(match => match.book)
 }
