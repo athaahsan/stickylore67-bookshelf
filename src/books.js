@@ -11,16 +11,34 @@ const columns = [
   'series_name', 'series_number', 'trailer_url', 'is_featured',
   'physical_book_affiliate_url', 'ebook_affiliate_url', 'audiobook_affiliate_url',
   'box_set_affiliate_url',
-].join(',')
+]
+
+export const booksTable = 'stickylore67_books'
+export const adminBookColumns = [...columns, 'featured_until'].join(',')
+
+export function createAdminClient() {
+  return url && key ? createClient(url, key, {
+    auth: { storageKey: 'sticky-lore-admin', detectSessionInUrl: false },
+  }) : null
+}
+
+export function isBookFeatured(book, now) {
+  return book.is_featured && (!book.featured_until || Date.parse(book.featured_until) > now)
+}
 
 export async function fetchBooks(signal) {
   if (!db) throw new Error('Missing Supabase configuration')
   const books = []
   const pageSize = 200
+  let selection = adminBookColumns
   while (!signal.aborted) {
-    const { data, error } = await db.from('stickylore67_books').select(columns)
-      .eq('is_published', true).order('created_at', { ascending: false }).order('id')
+    const { data, error } = await db.from(booksTable).select(selection)
+      .order('created_at', { ascending: false }).order('id')
       .range(books.length, books.length + pageSize - 1).abortSignal(signal)
+    if (error?.code === '42703' && selection.includes('featured_until') && error.message.includes('featured_until')) {
+      selection = columns.join(',')
+      continue
+    }
     if (error) throw error
     books.push(...data)
     if (data.length < pageSize) break

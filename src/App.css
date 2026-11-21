@@ -88,3 +88,43 @@ body:has(.filter-dialog[open]) { @apply overflow-hidden; }
 .format-links a {
   @apply flex min-h-11 items-center gap-[7px] rounded-[7px] bg-scarf px-3.5 py-2.5 text-control font-[550] text-white hover:bg-ink;
 }
+.admin-panel { @apply rounded-2xl border border-line bg-surface p-5 shadow-[0_5px_24px_#39332208] sm:p-8; }
+.admin-secondary, .admin-danger {
+  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-control font-semibold hover:border-scarf hover:text-scarf;
+}
+.admin-danger { @apply border-transparent bg-transparent text-[#923c32] hover:border-[#d8ada7] hover:bg-[#fcf0ed] hover:text-[#793128]; }
+.admin-nav { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border-0 px-2 text-control font-semibold hover:bg-[#eae9e2] phone:min-w-11; }
+.admin-nav span { @apply phone:hidden; }
+.admin-confirm { @apply inset-0 m-auto h-fit max-h-[85dvh] w-[min(420px,calc(100%-32px))] rounded-2xl border border-line bg-surface p-5; }
+body:has(.admin-confirm[open]) { @apply overflow-hidden; }
+.admin-input {
+  @apply min-h-11 min-w-0 rounded-lg border border-line bg-paper px-3 py-2 font-sans text-base font-normal text-ink focus-visible:outline-2 focus-visible:outline-scarf;
+}
+.placement-select {
+  @apply w-full appearance-none pr-11 hover:border-scarf;
+}
+@supports (appearance: base-select) and selector(::picker(select)) {
+  .placement-select,
+  .placement-select::picker(select) {
+    appearance: base-select;
+  }
+  .placement-select::picker-icon { display: none; }
+  .placement-select:open { @apply border-scarf; }
+  .placement-select:open + .placement-chevron { @apply rotate-180; }
+  .placement-select::picker(select) {
+    width: anchor-size(width);
+    position-area: block-end span-inline-end;
+    position-try: most-height flip-block;
+    max-height: min(460px, calc(100% - 12px));
+    @apply my-1.5 overflow-y-auto overscroll-contain rounded-xl border border-line bg-surface p-1.5 text-ink shadow-[0_8px_24px_#24262024];
+  }
+  .placement-select option {
+    @apply flex min-h-10 items-center gap-3 rounded-md px-3 py-2 font-sans text-control phone:min-h-11;
+  }
+  .placement-select option:checked { @apply bg-[#e6edf2] font-semibold text-scarf; }
+  .placement-select option:is(:hover, :focus-visible) {
+    @apply bg-[#dce8f1] text-scarf outline-none;
+  }
+  .placement-select option::checkmark { @apply order-1 ml-auto; }
+}
+.admin-error { @apply text-control text-red-800; }
