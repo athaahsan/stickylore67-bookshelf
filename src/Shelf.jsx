@@ -115,7 +115,7 @@ function FeaturedShelf({ books, open, detailsOpen }) {
     onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setKeyboardFocus(false) }}
     onPointerEnter={event => { if (event.pointerType === 'mouse') setHovered(true) }}
     onPointerLeave={() => setHovered(false)}>
-    <div ref={track} className="featured-track relative grid auto-cols-[100%] grid-flow-col gap-x-2.5 overflow-x-auto overscroll-x-contain snap-x snap-mandatory scroll-smooth rounded-2xl scrollbar-none motion-reduce:scroll-auto"
+    <div ref={track} className="featured-track relative grid auto-cols-[100%] grid-flow-col gap-x-2.5 overflow-x-auto overscroll-x-contain snap-x snap-mandatory scroll-smooth rounded-2xl scrollbar-none phone:rounded-xl motion-reduce:scroll-auto"
       onTouchStart={() => setTouching(true)} onTouchEnd={() => setTouching(false)} onTouchCancel={() => setTouching(false)}
       onScroll={event => {
         if (count < 2) return
