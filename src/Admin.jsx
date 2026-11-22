@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowUpRight, ChartNoAxesColumn, ChevronDown, LogOut, Trash2 } from 'lucide-react'
 import { Header, ShelfCollection, ShelfHeading } from './Shelf'
 import { adminBookColumns, booksTable, createAdminClient, fetchSeriesTotals, isBookFeatured, seriesOptions, seriesTable, webUrl, youtubeId } from './books'
+import VisitorAnalytics from './VisitorAnalytics'
 
 const client = createAdminClient()
 const day = 24 * 60 * 60 * 1000
-const analyticsUrl = 'https://app.netlify.com/projects/stickylore/analytics-and-metrics/analytics'
 
 const linkFields = [
   ['physical_book_affiliate_url', 'Physical book URL'],
@@ -377,6 +377,7 @@ export default function Admin() {
   const [session, setSession] = useState(undefined)
   const [access, setAccess] = useState(null)
   const [logoutError, setLogoutError] = useState('')
+  const [showAnalytics, setShowAnalytics] = useState(false)
   const userId = session?.user.id
 
   useEffect(() => {
@@ -398,14 +399,18 @@ export default function Admin() {
   async function signOut() {
     const { error } = await client.auth.signOut({ scope: 'local' })
     setLogoutError(error?.message ?? '')
-    if (!error) setAccess(null)
+    if (!error) {
+      setAccess(null)
+      setShowAnalytics(false)
+    }
   }
 
   return <>
     <Header>
       <nav className="flex items-center gap-3 phone:gap-1" aria-label="Admin navigation">
         <a href="/" className="admin-nav" aria-label="View public bookshelf"><ArrowUpRight size={18} /><span>View bookshelf</span></a>
-        {userId && access?.userId === userId && access.allowed && <a href={analyticsUrl} target="_blank" rel="noreferrer" className="admin-nav" aria-label="Daily traffic in Netlify Analytics"><ChartNoAxesColumn size={17} /><span>Analytics</span></a>}
+        {userId && access?.userId === userId && access.allowed && <button type="button" className="admin-nav aria-pressed:bg-[#e6edf2] aria-pressed:text-scarf"
+          aria-label="Analytics" aria-pressed={showAnalytics} onClick={() => setShowAnalytics(value => !value)}><ChartNoAxesColumn size={17} /><span>Analytics</span></button>}
         {userId && <button className="admin-nav" aria-label="Sign out" onClick={signOut}><LogOut size={17} /><span>Sign out</span></button>}
       </nav>
     </Header>
@@ -418,7 +423,10 @@ export default function Admin() {
         : access?.userId !== userId ? <p role="status">Checking admin access…</p>
         : access.error ? <p role="alert" className="admin-error">{access.error.message}</p>
         : !access.allowed ? <p role="alert">This account does not have bookshelf admin access.</p>
-        : <Catalog key={userId} />}
+        : <div key={userId}>
+          <div hidden={showAnalytics}><Catalog /></div>
+          {showAnalytics && <VisitorAnalytics client={client} back={() => setShowAnalytics(false)} />}
+        </div>}
     </main>
   </>
 }

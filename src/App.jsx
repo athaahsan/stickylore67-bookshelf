@@ -2,11 +2,15 @@ import { lazy, Suspense, useEffect, useState } from 'react'
 import { BookOpen } from 'lucide-react'
 import { Header, ShelfCollection, ShelfHeading } from './Shelf'
 import { fetchBooks, fetchSeriesTotals } from './books'
+import { trackBookshelfVisit } from './analytics'
 
 function Bookshelf() {
   const [catalog, setCatalog] = useState({ books: [], status: 'loading' })
   const [seriesTotals, setSeriesTotals] = useState(() => new Map())
   const [attempt, setAttempt] = useState(0)
+  useEffect(() => {
+    if (import.meta.env.PROD && window.location.protocol === 'https:') trackBookshelfVisit()
+  }, [])
   useEffect(() => {
     const controller = new AbortController()
     fetchBooks(controller.signal).then(books => {

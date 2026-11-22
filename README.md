@@ -15,7 +15,11 @@
 4. Deploy the app and sign in at `/admin`. Use the project's existing Supabase URL and publishable key in the Netlify build environment.
 5. After the updated site is deployed, run the [publish flag removal migration](supabase/migrations/20261121000002_remove_book_publish_flag.sql) in Supabase SQL Editor. This step also applies to existing installations. Every saved book, including any existing draft, becomes visible on the public bookshelf.
 
-Use **Add book** or **Edit** on the admin bookshelf to manage book details and set a Featured duration. **Save book** puts the book on the public shelf. **Delete book** permanently removes it after confirmation. For the daily visitor chart, open **Analytics** in the admin header.
+Use **Add book** or **Edit** on the admin bookshelf to manage book details and set a Featured duration. **Save book** puts the book on the public shelf. **Delete book** permanently removes it after confirmation.
+
+## Visitor analytics
+
+Apply the [visitor analytics migration](supabase/migrations/20261122075345_bookshelf_analytics.sql) before deploying the updated site. Open **Analytics** in the admin header to see today’s unique browsers and the last 30 days in Jakarta time. Visits are recorded on the public HTTPS bookshelf with a random daily ID stored in the browser. Collection starts after deployment.
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

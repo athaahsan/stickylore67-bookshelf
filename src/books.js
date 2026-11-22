@@ -55,6 +55,12 @@ export async function fetchSeriesTotals(signal, client = db) {
   return new Map(data.map(({ series_key, total_books }) => [series_key, total_books]))
 }
 
+export async function recordBookshelfVisit(browserId) {
+  if (!db) throw new Error('Missing Supabase configuration')
+  const { error } = await db.rpc('stickylore67_record_visit', { browser_id: browserId })
+  if (error) throw error
+}
+
 export function webUrl(value) {
   try {
     const parsed = new URL(value)
