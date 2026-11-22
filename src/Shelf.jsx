@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { BookOpen, Headphones, LibraryBig, Pencil, Plus, Search, SlidersHorizontal, Sparkle, Star, Tablet, X } from 'lucide-react'
 import avatar from './assets/sticky-avatar.webp'
 import banner from './assets/sticky-characters.webp'
@@ -143,6 +143,32 @@ const formats = [
 
 const emptyFilters = { genres: [], formats: [], series: '' }
 
+function focusCollection(heading) {
+  heading.focus({ preventScroll: true })
+  heading.scrollIntoView({ block: 'start' })
+}
+
+function layoutBookGrid(grid) {
+  const cards = Array.from(grid.children)
+  if (!cards.length) return
+
+  function fitCards() {
+    const gap = Number.parseFloat(getComputedStyle(grid).getPropertyValue('--book-row-gap'))
+    // Use pixel-sized grid tracks to pack the cards while keeping their DOM order.
+    const spans = cards.map(card => Math.ceil(card.getBoundingClientRect().height + gap))
+    cards.forEach((card, index) => card.style.setProperty('--book-card-rows', spans[index]))
+    grid.dataset.masonry = ''
+  }
+
+  fitCards()
+  const observer = new ResizeObserver(fitCards)
+  cards.forEach(card => observer.observe(card))
+  return () => {
+    observer.disconnect()
+    delete grid.dataset.masonry
+  }
+}
+
 function readShelfLocation() {
   const { searchParams } = new URL(window.location.href)
   return { bookId: searchParams.get('book'), series: seriesKey(searchParams.get('series')) }
@@ -241,13 +267,13 @@ function BookDetails({ book, close, edit, openSeries, total }) {
         <div className="grid grid-cols-[112px_1fr] items-center gap-[22px] phone:grid-cols-[82px_minmax(0,1fr)] phone:gap-[13px]">
           <div className="detail-cover"><Cover book={book} /></div>
           <div>
-            {series && <p className="mb-[7px] wrap-anywhere text-[.86rem] text-scarf">
-              <a className="rounded-sm underline underline-offset-2 hover:text-ink" href={seriesLink(series).href}
+            {series && <p className="mb-[7px] wrap-anywhere text-[.86rem] text-series">
+              <a className="rounded-sm font-medium underline decoration-[#b7a58f] underline-offset-3 hover:text-ink hover:decoration-current" href={seriesLink(series).href}
                 onClick={event => {
                   if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
                   event.preventDefault()
                   openSeries(series)
-                }}>{book.series_name.trim()}</a>{position && ` · ${position}`}
+                }}>{book.series_name.trim()}</a>{position && <> <span className="whitespace-nowrap">· {position}</span></>}
             </p>}
             <h2 className="wrap-anywhere text-[clamp(1.9rem,4vw,2.8rem)] tracking-[-.04em]" id="detail-title">{book.title}</h2><p className="mt-1.5 text-[#57584f]">by {book.author}</p>
             <Genres genres={book.genres} />
@@ -289,6 +315,7 @@ export function ShelfCollection({ books, seriesTotals, status, retry, edit, add 
   const [filters, setFilters] = useState(emptyFilters)
   const [{ bookId, series }, setLocation] = useState(readShelfLocation)
   const collectionHeading = useRef(null)
+  const bookGrid = useRef(null)
   useEffect(() => {
     const sync = () => setLocation(readShelfLocation())
     window.addEventListener('popstate', sync)
@@ -324,9 +351,7 @@ export function ShelfCollection({ books, seriesTotals, status, retry, edit, add 
   }
   useEffect(() => {
     if (status !== 'ready' || bookId || !series || window.location.hash !== '#collection-title') return
-    const heading = collectionHeading.current
-    heading.focus({ preventScroll: true })
-    heading.scrollIntoView({ block: 'start' })
+    focusCollection(collectionHeading.current)
   }, [bookId, series, status])
   const [now, setNow] = useState(Date.now)
   useEffect(() => {
@@ -347,6 +372,8 @@ export function ShelfCollection({ books, seriesTotals, status, retry, edit, add 
   const activeSeriesName = seriesList.find(([key]) => key === series)?.[1] ?? series
   const currentFilters = { ...filters, series }
   const results = filterBooks(books, query, currentFilters)
+  const resultIds = results.map(book => book.id).join(',')
+  useLayoutEffect(() => layoutBookGrid(bookGrid.current), [resultIds])
   const filtered = Boolean(query.trim() || filters.genres.length || filters.formats.length || series)
   const totalFor = book => seriesTotals?.get(seriesKey(book.series_name))
   function clear() { setQuery(''); applyFilters(emptyFilters) }
@@ -359,7 +386,7 @@ export function ShelfCollection({ books, seriesTotals, status, retry, edit, add 
         {add && <button className="primary ml-auto" onClick={add}><Plus size={16} />Add book</button>}
       </div>
       {status === 'ready' && books.length > 0 && <div className="mb-[23px] flex flex-wrap gap-2.5 phone:mb-4 phone:gap-2">
-        <label className="control min-w-0 flex-1 gap-2.5 px-3.5 text-muted focus-within:outline-2 focus-within:outline-solid focus-within:outline-scarf focus-within:outline-offset-2"><Search size={19} /><input className="h-[43px] w-full min-w-0 border-0 bg-transparent text-[1rem] text-ink outline-none" type="search" value={query} aria-label="Search books and series" placeholder="Search books or series…" onChange={e => setQuery(e.target.value)} /></label>
+        <label className="control min-w-0 flex-1 gap-2.5 px-3.5 text-muted focus-within:outline-2 focus-within:outline-solid focus-within:outline-scarf focus-within:outline-offset-2"><Search size={19} /><input className="h-[43px] w-full min-w-0 border-0 bg-transparent text-[1rem] text-ink outline-none" type="search" value={query} aria-label="Search books and series" placeholder="Search books or series…" onChange={event => setQuery(event.target.value)} /></label>
         {(genres.length > 0 || availableFormats.length > 0 || seriesList.length > 0) &&
           <BookFilters filters={currentFilters} onApply={applyFilters} genres={genres} availableFormats={availableFormats} seriesList={seriesList} />}
         {series && <div className="w-full">
@@ -372,14 +399,24 @@ export function ShelfCollection({ books, seriesTotals, status, retry, edit, add 
       {status === 'loading' && <p className="status" role="status">Loading books…</p>}
       {status === 'error' && <div className="status" role="alert"><p>The bookshelf couldn’t load.</p><button className="text-button" onClick={retry}>Try again</button></div>}
       {status === 'ready' && !results.length && <div className="status"><p>{filtered ? 'No books match your search.' : 'The bookshelf is empty for now.'}</p>{filtered && <button className="text-button" onClick={clear}>Clear search and filters</button>}</div>}
-      <div className="grid grid-cols-4 gap-x-[22px] gap-y-7 compact:grid-cols-3 phone:grid-cols-2 phone:gap-x-[13px] phone:gap-y-5">{results.map(book => <div className="book-card min-w-0" key={book.id}><button className="group w-full flex flex-col items-stretch rounded-[9px] border-0 p-0 text-left" onClick={() => open(book)}>
-        <span className="card-art grid aspect-[1.15] place-items-center rounded-[10px] border border-[#d9ded6] bg-[#e6e9e4] phone:aspect-[.87]"><span className="grid h-[81%] max-w-[80%] min-h-0 drop-shadow-[3px_5px_4px_#3334] transition-transform duration-[180ms] ease-[ease] group-hover:-translate-y-[3px] motion-reduce:transition-none"><Cover book={book} lazy /></span></span>
-        <span className="card-title mt-[11px] font-serif text-[1.3rem] leading-[1.2] tracking-[-.025em] phone:text-[1.15rem]">{book.title}</span><span className="mt-1 text-control text-muted">{book.author}</span>
-        {seriesKey(book.series_name) && <span className="mt-1 wrap-anywhere text-note text-scarf">{[book.series_name.trim(), bookPosition(book, totalFor(book))].filter(Boolean).join(' · ')}</span>}
-        {edit && book.bookshelf_visibility === false && <span className="mt-2 self-start rounded-full bg-[#eae9e2] px-2 py-0.5 text-note text-muted">Hidden</span>}
-      </button>
-        {edit && <button className="admin-secondary mt-2" aria-label={`Edit ${book.title} by ${book.author}`} onClick={() => edit(book)}><Pencil size={14} />Edit</button>}
-      </div>)}</div>
+      <div className="book-grid grid grid-cols-4 gap-x-[22px] [--book-row-gap:24px] compact:grid-cols-3 phone:grid-cols-2 phone:gap-x-[13px] phone:[--book-row-gap:16px]" ref={bookGrid}>
+        {results.map(book => <div className="book-card flex min-w-0 flex-col" key={book.id}>
+          <button type="button" className="group flex w-full flex-col items-stretch overflow-hidden rounded-xl border border-[#e1d7c6] bg-[#f9f4ea] p-0 text-left hover:border-[#b6a58c]" onClick={() => open(book)}>
+            <span className="card-art relative block aspect-[1.15] shrink-0 border-b border-[#d9ded6] bg-[#e6e9e4] phone:aspect-[.87]">
+              <span className="absolute inset-x-[10%] inset-y-[9.5%] grid grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] place-items-center drop-shadow-[3px_5px_4px_#3334] transition-transform duration-[180ms] ease-[ease] group-hover:-translate-y-[3px] motion-reduce:transition-none [&>.cover]:max-w-full [&>img]:w-full">
+                <Cover book={book} lazy />
+              </span>
+            </span>
+            <span className="flex flex-col gap-1 px-3.5 pt-3 pb-3.5 phone:px-2.5 phone:pt-2.5 phone:pb-3">
+              <span className="line-clamp-2 wrap-anywhere font-serif text-[1.3rem] leading-[1.2] tracking-[-.025em] phone:text-[1.15rem]">{book.title}</span>
+              <span className="wrap-anywhere text-control text-muted">{book.author}</span>
+              {edit && book.bookshelf_visibility === false && <span className="mt-1 self-start rounded-full bg-[#eae9e2] px-2 py-0.5 text-note text-muted">Hidden</span>}
+              {seriesKey(book.series_name) && <span className="wrap-anywhere pt-0.5 text-xs/4 text-series phone:text-[.6875rem]/[.9375rem]">{[book.series_name.trim(), bookPosition(book, totalFor(book))].filter(Boolean).join(' · ')}</span>}
+            </span>
+          </button>
+          {edit && <button className="admin-secondary mt-2" aria-label={`Edit ${book.title} by ${book.author}`} onClick={() => edit(book)}><Pencil size={14} />Edit</button>}
+        </div>)}
+      </div>
     </section>
     {selected && <BookDetails key={selected.id} book={selected} close={close} edit={edit} openSeries={openSeries} total={totalFor(selected)} />}
   </>

@@ -48,6 +48,13 @@
   background: linear-gradient(90deg, #0005, transparent 2%, #fff4 3%, #0003 4%, transparent 6%);
 }
 img.cover { @apply min-h-0; }
+.book-grid { @apply items-start; row-gap: var(--book-row-gap); }
+.book-grid[data-masonry] {
+  grid-auto-rows: 1px;
+  row-gap: 0;
+  margin-bottom: calc(-1 * var(--book-row-gap));
+}
+.book-grid[data-masonry] > .book-card { grid-row-end: span var(--book-card-rows); }
 .book-card:nth-child(3n + 2) .card-art { @apply border-[#e2d9cc] bg-[#ece4d9]; }
 .book-card:nth-child(3n) .card-art { @apply bg-[#e2e8ea]; }
 
