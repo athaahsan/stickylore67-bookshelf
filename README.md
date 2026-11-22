@@ -21,6 +21,8 @@ Use **Add book** or **Edit** on the admin bookshelf to manage book details and s
 
 Apply the [visitor analytics migration](supabase/migrations/20261122075345_bookshelf_analytics.sql) before deploying the updated site. Open **Analytics** in the admin header to see today’s unique browsers and the last 30 days in Jakarta time. Visits are recorded on the public HTTPS bookshelf with a random daily ID stored in the browser. Collection starts after deployment.
 
+The [visitor breakdown migration](supabase/migrations/20261122083044_bookshelf_visitor_breakdown.sql) adds 30-day country and traffic-source reports. The Netlify Edge Function uses the incoming request’s country code. The bookshelf stores the code and a source category with each daily visit. Use `?utm_source=instagram`, `?utm_source=youtube`, or `?utm_source=tiktok` on profile links to identify traffic when the app hides the referrer.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

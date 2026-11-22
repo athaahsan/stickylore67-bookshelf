@@ -4,6 +4,12 @@ import { ArrowLeft, RefreshCw } from 'lucide-react'
 const dateLabel = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
 const formatDate = date => dateLabel.format(new Date(date))
 const formatCount = new Intl.NumberFormat('en-US')
+const formatShare = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 })
+const countryNames = new Intl.DisplayNames('en', { type: 'region', fallback: 'none' })
+const sourceNames = {
+  instagram: 'Instagram', youtube: 'YouTube', tiktok: 'TikTok', facebook: 'Facebook',
+  reddit: 'Reddit', google: 'Google', other: 'Other websites', direct: 'Direct / unknown',
+}
 
 function DailyChart({ days }) {
   const maxCount = Math.max(...days.map(day => day.unique_browsers))
@@ -47,6 +53,49 @@ function DailyChart({ days }) {
   </div>
 }
 
+function BreakdownRows({ rows, total, labelFor }) {
+  return <ul className="m-0 grid list-none gap-3.5 p-0">
+    {rows.map(({ bucket, visits }) => <li key={bucket ?? 'unknown'}>
+      <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-control">
+        <span className="font-semibold">{labelFor(bucket)}</span>
+        <span className="text-muted tabular-nums">{formatCount.format(visits)} · {formatShare.format(visits / total)}</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-line/60" aria-hidden="true">
+        <div className="h-full rounded-full bg-scarf" style={{ width: `${100 * visits / total}%` }} />
+      </div>
+    </li>)}
+  </ul>
+}
+
+function BreakdownCard({ title, rows, labelFor }) {
+  const total = rows.reduce((sum, row) => sum + Number(row.visits), 0)
+  const visibleRows = 5
+
+  return <div className="min-w-0 rounded-xl border border-line bg-paper p-4 sm:p-5">
+    <h4 className="m-0 mb-3 text-base font-semibold">{title}</h4>
+    {total ? <>
+      <BreakdownRows rows={rows.slice(0, visibleRows)} total={total} labelFor={labelFor} />
+      {rows.length > visibleRows && <details className="mt-3 border-t border-line pt-2">
+        <summary className="cursor-pointer py-1.5 text-control font-semibold text-scarf">Show {rows.length - visibleRows} more</summary>
+        <div className="mt-2"><BreakdownRows rows={rows.slice(visibleRows)} total={total} labelFor={labelFor} /></div>
+      </details>}
+    </> : <p className="text-control text-muted">No visits in this period.</p>}
+  </div>
+}
+
+function VisitorBreakdown({ rows }) {
+  return <section className="mt-6 border-t border-line pt-5" aria-labelledby="visitor-breakdown-title">
+    <h3 id="visitor-breakdown-title" className="text-2xl">Visitor breakdown</h3>
+    <p className="mt-1 text-control text-muted">Last 30 days, based on each browser’s first visit per day.</p>
+    {rows ? <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      <BreakdownCard title="Countries" rows={rows.filter(row => row.dimension === 'country')}
+        labelFor={code => code ? countryNames.of(code) ?? code : 'Unknown country'} />
+      <BreakdownCard title="Traffic sources" rows={rows.filter(row => row.dimension === 'source')}
+        labelFor={source => sourceNames[source] ?? 'Not recorded'} />
+    </div> : <p className="admin-error mt-4" role="alert">Countries and traffic sources couldn’t load. Try refreshing.</p>}
+  </section>
+}
+
 export default function VisitorAnalytics({ client, back }) {
   const [result, setResult] = useState({ status: 'loading' })
   const [attempt, setAttempt] = useState(0)
@@ -54,9 +103,12 @@ export default function VisitorAnalytics({ client, back }) {
   useEffect(() => {
     const controller = new AbortController()
     async function load() {
-      const { data, error } = await client.rpc('stickylore67_daily_visitors').abortSignal(controller.signal)
+      const [{ data, error }, breakdown] = await Promise.all([
+        client.rpc('stickylore67_daily_visitors').abortSignal(controller.signal),
+        client.rpc('stickylore67_visitor_breakdown').abortSignal(controller.signal),
+      ])
       if (error || !data?.length) throw error ?? new Error('Analytics is unavailable')
-      if (!controller.signal.aborted) setResult({ status: 'ready', days: data })
+      if (!controller.signal.aborted) setResult({ status: 'ready', days: data, breakdown: breakdown.error ? null : breakdown.data })
     }
     load().catch(() => {
       if (!controller.signal.aborted) setResult({ status: 'error' })
@@ -90,6 +142,7 @@ export default function VisitorAnalytics({ client, back }) {
         <h3 className="text-2xl">Last 30 days</h3>
         <p className="mt-1 text-control text-muted">One count per browser per day. Days reset at midnight Jakarta time (WIB).</p>
         <DailyChart days={result.days} />
+        <VisitorBreakdown rows={result.breakdown} />
       </>}
     </div>
   </section>
